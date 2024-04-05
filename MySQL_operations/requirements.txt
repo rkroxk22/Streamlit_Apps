@@ -1,3 +1,6 @@
 mysql-connector-python
 streamlit
 pandas
+io
+subprocess
+time
