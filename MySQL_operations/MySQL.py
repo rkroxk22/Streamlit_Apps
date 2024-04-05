@@ -2,6 +2,7 @@ import mysql.connector
 import streamlit as st
 import pandas as pd
 import io
+import os
 
 # Function to authenticate user credentials with MySQL database
 def authenticate(username, password):
