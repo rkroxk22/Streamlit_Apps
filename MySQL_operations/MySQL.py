@@ -2,8 +2,6 @@ import mysql.connector
 import streamlit as st
 import pandas as pd
 import io
-import subprocess
-import time
 
 # Function to authenticate user credentials with MySQL database
 def authenticate(username, password):
@@ -91,7 +89,6 @@ def main():
             else:
                 st.error("Invalid username or password. Please try again.")
 
-
     if session_state.authenticated:
         # Add logout button in side panel
         if st.sidebar.button("Logout", help="Click to logout"):
@@ -120,8 +117,6 @@ def reset_password_panel():
                 st.error("Failed to reset password. Please check your old password.")
         else:
             st.error("New password and confirm password do not match.")
-
-
 
 # Function to perform database operations
 def perform_operations(db_connection):
@@ -509,24 +504,20 @@ def delete_record(selected_database, selected_table, mycursor, db_connection):
                     db_connection.commit()
                     st.success("Record Deleted Successfully!!!")
             else:
-                st.write("Multiple primary keys found in the table.")
-                st.write("Select the primary key to use for deletion:")
-                st.write("Cannot perform deletion for tables with composite primary keys.")
+                st.error("Multiple primary keys found in the table. Deletion is not supported.")
         except mysql.connector.Error as err:
             st.error(f"Error: {err}")
 
 # Function to get all databases
 def get_all_databases(mycursor):
     mycursor.execute("SHOW DATABASES")
-    databases = [db[0] for db in mycursor.fetchall()]
-    return databases
+    return [db[0] for db in mycursor.fetchall()]
 
 # Function to get all tables in a database
 def get_all_tables(database, mycursor):
     mycursor.execute(f"USE {database}")
     mycursor.execute("SHOW TABLES")
-    tables = [table[0] for table in mycursor.fetchall()]
-    return tables
+    return [table[0] for table in mycursor.fetchall()]
 
 if __name__ == "__main__":
     main()
