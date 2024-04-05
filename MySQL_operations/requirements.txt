@@ -1,5 +1,5 @@
 mysql-connector-python
 SQLAlchemy
-streamlit==1.28
+streamlit
 pandas
 module_name
