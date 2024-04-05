@@ -1,4 +1,3 @@
+mysql-connector-python
 streamlit
-mysql-connector
-pandas 
-module_name
+pandas
