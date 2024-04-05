@@ -1,4 +1,5 @@
 mysql-connector-python
+SQLAlchemy
 streamlit
 pandas
 module_name
