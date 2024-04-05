@@ -2,14 +2,13 @@ import mysql.connector
 import streamlit as st
 import pandas as pd
 import io
-import os
 
 # Function to authenticate user credentials with MySQL database
-def authenticate(username, password):
+def authenticate(username, password, host):
     try:
         # Establish connection to MySQL Server
         mydb = mysql.connector.connect(
-            host="localhost",
+            host=host,
             user=username,
             password=password
         )
@@ -19,34 +18,34 @@ def authenticate(username, password):
         else:
             return False, None
     except mysql.connector.Error as err:
-        print(f"Error: {err}")
+        st.error(f"Error: {err}")
         return False, None
 
 # Function to reset MySQL password for a given username
-def reset_password(username, old_password, new_password):
+def reset_password(username, old_password, new_password, host):
     try:
         # Connect to MySQL Server with the old password
         mydb = mysql.connector.connect(
-            host="localhost",
+            host=host,
             user=username,
             password=old_password
         )
         mycursor = mydb.cursor()
 
         # Reset the password for the specified username
-        mycursor.execute(f"ALTER USER '{username}'@'localhost' IDENTIFIED BY '{new_password}'")
+        mycursor.execute(f"ALTER USER '{username}'@'{host}' IDENTIFIED BY '{new_password}'")
         mydb.commit()
         return True
     except mysql.connector.Error as err:
-        print(f"Error: {err}")
+        st.error(f"Error: {err}")
         return False
 
 # Create Streamlit App
 def main():
 
-    # Watermark
+     # Watermark
     st.markdown("<p style='text-align:left;color:gray;font-size:small;'>Developed by: Dopana Rohit Kumar</p>", unsafe_allow_html=True)
-    
+    # Watermark
     st.title("🤖MySQL with Streamlit web app")
 
     # Create a session state to store authentication status and credentials
@@ -64,9 +63,13 @@ def main():
     if 'password' not in session_state:
         session_state.password = ""
 
+    if 'host' not in session_state:
+        session_state.host = ""  # Update with your MySQL host
+
     if not session_state.authenticated:
         # Login Form
         st.subheader("Login")
+        session_state.host = st.text_input("Host", value=session_state.host,placeholder="your_mysql_host")
         username = st.text_input("Username", value=session_state.username)
         password = st.text_input("Password", type="password", value=session_state.password)
         
@@ -75,12 +78,13 @@ def main():
 
         # Show Reset Password panel if checkbox is checked
         if session_state.reset_password:
+            st.warning("Make sure you mention the host above.")
             reset_password_expander = st.expander("Reset Password", expanded=True)
             with reset_password_expander:
-                reset_password_panel()
+                reset_password_panel(session_state.host)
 
         if st.button("Login"):
-            authenticated, db_connection = authenticate(username, password)
+            authenticated, db_connection = authenticate(username, password, session_state.host)
             if authenticated:
                 session_state.authenticated = True
                 session_state.db_connection = db_connection
@@ -100,7 +104,7 @@ def main():
         perform_operations(session_state.db_connection)
 
 # Panel for resetting password
-def reset_password_panel():
+def reset_password_panel(host):
     username_key = "reset_username_input"
     old_password_key = "reset_old_password_input"
     new_password_key = "reset_new_password_input"
@@ -112,7 +116,7 @@ def reset_password_panel():
     confirm_new_password = st.text_input("Confirm New Password", type="password", key=confirm_new_password_key)
     if st.button("Reset"):
         if new_password == confirm_new_password:
-            if reset_password(username, old_password, new_password):
+            if reset_password(username, old_password, new_password, host):
                 st.success("Password reset successfully!")
             else:
                 st.error("Failed to reset password. Please check your old password.")
@@ -152,7 +156,7 @@ def execute_sql_script(uploaded_file, mycursor, db_connection):
                 mycursor.execute(query)
         db_connection.commit()
         st.success("SQL script executed successfully and queries added to the database.")
-    except mysql.connector.Error as err:
+    except (mysql.connector.Error, ValueError) as err:
         st.error(f"An error occurred while executing the SQL script: {err}")
 
 # Function to perform CRUD operations
@@ -266,7 +270,6 @@ def alter_table(selected_database, mycursor, db_connection):
         except mysql.connector.Error as err:
             st.error(f"Error: {err}")
 
-
 # Function to truncate a table
 def truncate_table(selected_database, mycursor, db_connection):
     st.subheader("Truncate Table")
@@ -280,6 +283,7 @@ def truncate_table(selected_database, mycursor, db_connection):
                 st.success(f"Table '{selected_table}' truncated successfully!")
             except mysql.connector.Error as err:
                 st.error(f"Error: {err}")
+
 # Function to drop table
 def drop_table(selected_database, mycursor, db_connection):
     st.subheader("Drop Table")
@@ -484,7 +488,7 @@ def delete_record(selected_database, selected_table, mycursor, db_connection):
             primary_keys_info = mycursor.fetchall()
 
             if not primary_keys_info:
-                st.error("No primary key found in the table. Cannot perform deletion.")
+                st.error("No primary key found in the table. Cannot perform delete.")
                 return
 
             primary_keys = [primary_key_info[4] for primary_key_info in primary_keys_info]
@@ -495,17 +499,19 @@ def delete_record(selected_database, selected_table, mycursor, db_connection):
                 # Get all primary key values
                 mycursor.execute(f"SELECT {primary_key} FROM {selected_table}")
                 primary_key_values = [row[0] for row in mycursor.fetchall()]
+
                 # Display dropdown list for primary key selection
                 id = st.selectbox(f"Select {primary_key} to Delete", primary_key_values)
+
                 if st.button("Delete"):
-                    # Construct SQL query for deletion
-                    sql = f"DELETE FROM {selected_table} WHERE {primary_key} = %s"
+                    sql = f"DELETE FROM {selected_table} WHERE {primary_key}=%s"
                     val = (id,)
                     mycursor.execute(sql, val)
                     db_connection.commit()
                     st.success("Record Deleted Successfully!!!")
             else:
-                st.error("Multiple primary keys found in the table. Deletion is not supported.")
+                st.write("Multiple primary keys found in the table.")
+                st.write("Cannot perform delete operation.")
         except mysql.connector.Error as err:
             st.error(f"Error: {err}")
 
@@ -515,10 +521,11 @@ def get_all_databases(mycursor):
     return [db[0] for db in mycursor.fetchall()]
 
 # Function to get all tables in a database
-def get_all_tables(database, mycursor):
-    mycursor.execute(f"USE {database}")
+def get_all_tables(selected_database, mycursor):
+    mycursor.execute(f"USE {selected_database}")
     mycursor.execute("SHOW TABLES")
     return [table[0] for table in mycursor.fetchall()]
 
+# Run the main function
 if __name__ == "__main__":
     main()
