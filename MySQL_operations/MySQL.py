@@ -463,17 +463,19 @@ def update_record(selected_database, selected_table, mycursor, db_connection):
             for col, value in zip(columns, current_record[1:]):  # Skip primary key column
                 entry_values[col] = st.text_input(f"Enter New {col}", placeholder=value)
 
+            # Update button
             if st.button("Update"):
-                # Construct SQL query for update
-                update_values = ', '.join([f"{col}='{value}'" for col, value in entry_values.items() if value.strip()])
-                if update_values:
-                    sql = f"UPDATE {selected_table} SET {update_values} WHERE {primary_key}=%s"
-                    val = (id,)
-                    mycursor.execute(sql, val)
-                    db_connection.commit()
-                    st.success("Record Updated Successfully!!!")
-                else:
-                    st.warning("No fields to update.")
+                # Construct SET clause for SQL query
+                set_clause = ', '.join([f"{col} = '{entry_values[col]}'" for col in entry_values])
+                # Construct WHERE clause for SQL query
+                where_clause = f"{primary_key} = '{id}'"
+                # Construct UPDATE query
+                sql = f"UPDATE {selected_table} SET {set_clause} WHERE {where_clause}"
+                # Execute UPDATE query
+                mycursor.execute(sql)
+                db_connection.commit()
+                st.success("Record Updated Successfully!!!")
+
         except mysql.connector.Error as err:
             st.error(f"Error: {err}")
 
@@ -488,7 +490,7 @@ def delete_record(selected_database, selected_table, mycursor, db_connection):
             primary_keys_info = mycursor.fetchall()
 
             if not primary_keys_info:
-                st.error("No primary key found in the table. Cannot perform delete.")
+                st.error("No primary key found in the table. Cannot perform deletion.")
                 return
 
             primary_keys = [primary_key_info[4] for primary_key_info in primary_keys_info]
@@ -496,22 +498,36 @@ def delete_record(selected_database, selected_table, mycursor, db_connection):
             # Check if there is only one primary key
             if len(primary_keys) == 1:
                 primary_key = primary_keys[0]
-                # Get all primary key values
-                mycursor.execute(f"SELECT {primary_key} FROM {selected_table}")
-                primary_key_values = [row[0] for row in mycursor.fetchall()]
+                # Show primary key column for reference
+                st.write(f"Primary Key: {primary_key}")
 
-                # Display dropdown list for primary key selection
-                id = st.selectbox(f"Select {primary_key} to Delete", primary_key_values)
-
-                if st.button("Delete"):
-                    sql = f"DELETE FROM {selected_table} WHERE {primary_key}=%s"
-                    val = (id,)
-                    mycursor.execute(sql, val)
-                    db_connection.commit()
-                    st.success("Record Deleted Successfully!!!")
             else:
                 st.write("Multiple primary keys found in the table.")
-                st.write("Cannot perform delete operation.")
+                st.write("Select the primary key to use for deletion:")
+                # Automatically select the first primary key for deletion
+                primary_key = primary_keys[0]
+                st.write(f"Primary key '{primary_key}' selected for deletion.")
+                # Show primary key column for reference
+                st.write(f"Primary Key: {primary_key}")
+
+            # Get all primary key values
+            mycursor.execute(f"SELECT {primary_key} FROM {selected_table}")
+            primary_key_values = [row[0] for row in mycursor.fetchall()]
+
+            # Display dropdown list for primary key selection
+            id = st.selectbox(f"Select {primary_key} to Delete", primary_key_values)
+
+            # Delete button
+            if st.button("Delete"):
+                # Construct WHERE clause for SQL query
+                where_clause = f"{primary_key} = '{id}'"
+                # Construct DELETE query
+                sql = f"DELETE FROM {selected_table} WHERE {where_clause}"
+                # Execute DELETE query
+                mycursor.execute(sql)
+                db_connection.commit()
+                st.success("Record Deleted Successfully!!!")
+
         except mysql.connector.Error as err:
             st.error(f"Error: {err}")
 
@@ -526,6 +542,5 @@ def get_all_tables(selected_database, mycursor):
     mycursor.execute("SHOW TABLES")
     return [table[0] for table in mycursor.fetchall()]
 
-# Run the main function
 if __name__ == "__main__":
     main()
