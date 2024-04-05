@@ -1,4 +1,4 @@
 streamlit
-mysql-connector-python
+mysql-connector
 pandas 
 module_name
