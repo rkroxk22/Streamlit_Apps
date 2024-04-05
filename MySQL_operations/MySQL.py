@@ -5,28 +5,8 @@ import io
 import subprocess
 import time
 
-# Function to check if MySQL is installed
-def is_mysql_installed():
-    try:
-        subprocess.check_call(["mysql", "--version"])
-        return True
-    except subprocess.CalledProcessError:
-        return False
-    
-# Function to display a warning message for a few seconds
-def show_warning_message(message, duration=5):
-    st.warning(message)
-    time.sleep(duration)
-    st.empty()
-
-
 # Function to authenticate user credentials with MySQL database
 def authenticate(username, password):
-    # Check if MySQL is installed
-    if not is_mysql_installed():
-        st.warning("MySQL should be installed in order to use this Streamlit MySQL app.")
-        return False, None
-
     try:
         # Establish connection to MySQL Server
         mydb = mysql.connector.connect(
