@@ -20,7 +20,6 @@ mydb = mysql.connector.connect(
 )
 mycursor = mydb.cursor()
 
-
 # Function to fetch schema names from information_schema
 def get_schema_names():
     mycursor.execute("SELECT schema_name FROM schemata WHERE schema_name NOT IN ('information_schema', 'mysql', 'performance_schema')")
@@ -94,9 +93,6 @@ def get_prompt(schema, table):
     """
     return [prompt]
 
-
-
-
 # Function to save uploaded file
 def save_uploaded_file(uploaded_file):
     with open("student.sql", "wb") as f:  # Assuming the uploaded file is a SQL dump
@@ -107,15 +103,10 @@ def delete_db_file():
     # Add code to delete MySQL database file if necessary
     pass
 
-
 # Function to display radio buttons for table selection
 def select_table_radio(table_names):
     selected_table = st.selectbox("Select Table", table_names, format_func=lambda x: 'Select a Table' if x == '' else x,index=None)
     return selected_table
-
-
-
-
 
 # Set page config with the icon URL
 st.set_page_config(page_title="Text 2 SQL", page_icon='https://www.icone-png.com/png/53/53389.png')
@@ -124,7 +115,6 @@ st.header("\U0001F4BB Text to SQL- Retrieve SQL Data")
 
 # Option selection: select schema or upload file
 option = st.radio("Select Option", ["Select Schema", "Upload File"], index=None)
-
 
 if option == "Upload File":
     # Upload file section
@@ -150,7 +140,6 @@ if option == "Upload File":
         # Fetch schema name for database connection
         selected_schema = "information_schema"  # Assuming default schema for now
         
-
 elif option == "Select Schema":
     # Schema selection dropdown
     schema_names = get_schema_names()
