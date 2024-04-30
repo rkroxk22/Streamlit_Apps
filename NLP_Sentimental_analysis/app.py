@@ -14,6 +14,10 @@ st.markdown(
     .stTextInput>div>div>input {
         background-color: #333333;
         color: #FFFFFF;
+        caret-color: #FFFFFF; /* Color of the cursor */
+    }
+    .stTextInput>div>div>input:focus {
+        box-shadow: none; /* Remove the focus border */
     }
     .stButton>button {
         background-color: #4CAF50;
