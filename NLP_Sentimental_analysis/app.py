@@ -3,6 +3,33 @@ import pickle
 import requests
 from io import BytesIO
 
+# Set dark theme using Streamlit theming
+st.markdown(
+    """
+    <style>
+    .reportview-container {
+        background-color: #121212;
+        color: #FFFFFF;
+    }
+    .stTextInput>div>div>input {
+        background-color: #333333;
+        color: #FFFFFF;
+    }
+    .stButton>button {
+        background-color: #4CAF50;
+        color: #FFFFFF;
+    }
+    .stButton>button:hover {
+        background-color: #45a049;
+    }
+    .stButton>button:active {
+        background-color: #3e8e41;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 # Download the pickle file
 url = 'https://github.com/rkroxk22/Streamlit_Apps/raw/main/NLP_Sentimental_analysis/IMDB_sentiment_analysis.pkl'
 response = requests.get(url)
