@@ -45,8 +45,8 @@ model = pickle.load(pickle_bytes)
 # Create title
 st.title('Sentiment Analysis Model')
 
-# Text input for review with bold heading
-st.markdown('<p style="font-weight:bold;">Enter your review:</p>', unsafe_allow_html=True)
+# Text input for review with reduced spacing between the heading and the input
+st.markdown('<p style="font-weight:bold; margin-bottom: 5px;">Enter your review:</p>', unsafe_allow_html=True)
 review = st.text_input('')
 
 # Submit button
