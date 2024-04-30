@@ -3,6 +3,9 @@ import pickle
 import requests
 from io import BytesIO
 
+# Set dark theme for Streamlit UI
+st.set_page_config(page_title='Sentiment Analysis Model', layout='wide', initial_sidebar_state='auto', theme='dark')
+
 # Download the pickle file
 url = 'https://github.com/rkroxk22/Streamlit_Apps/raw/main/NLP_Sentimental_analysis/IMDB_sentiment_analysis.pkl'
 response = requests.get(url)
