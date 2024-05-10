@@ -2,16 +2,6 @@ import mysql.connector
 import streamlit as st
 import pandas as pd
 import io
-import time
-
-# Function to connect to MySQL server
-def connect_to_mysql(host, username, password):
-    try:
-        # Establish connection to MySQL Server
-        return mysql.connector.connect(host=host, user=username, password=password)
-    except mysql.connector.Error as err:
-        st.error(f"Error connecting to MySQL server: {err}")
-        return None
 
 # Function to authenticate user credentials with MySQL database
 def authenticate(username, password, host):
@@ -28,33 +18,34 @@ def authenticate(username, password, host):
         else:
             return False, None
     except mysql.connector.Error as err:
-        if err.errno == 2003:
-            st.error(f"Error connecting to MySQL server: {err}")
-        else:
-            st.error(f"Authentication failed: {err}")
+        st.error(f"Error: {err}")
         return False, None
 
 # Function to reset MySQL password for a given username
 def reset_password(username, old_password, new_password, host):
-    db_connection = connect_to_mysql(host, username, old_password)
-    if db_connection:
-        try:
-            mycursor = db_connection.cursor()
-            mycursor.execute(f"ALTER USER '{username}'@'{host}' IDENTIFIED BY '{new_password}'")
-            db_connection.commit()
-            return True
-        except mysql.connector.Error as err:
-            st.error(f"Error resetting password: {err}")
-            return False
-        finally:
-            db_connection.close()
-    else:
+    try:
+        # Connect to MySQL Server with the old password
+        mydb = mysql.connector.connect(
+            host=host,
+            user=username,
+            password=old_password
+        )
+        mycursor = mydb.cursor()
+
+        # Reset the password for the specified username
+        mycursor.execute(f"ALTER USER '{username}'@'{host}' IDENTIFIED BY '{new_password}'")
+        mydb.commit()
+        return True
+    except mysql.connector.Error as err:
+        st.error(f"Error: {err}")
         return False
 
 # Create Streamlit App
 def main():
-    # Watermark
+
+     # Watermark
     st.markdown("<p style='text-align:left;color:gray;font-size:small;'>Developed by: Dopana Rohit Kumar</p>", unsafe_allow_html=True)
+    # Watermark
     st.title("🤖MySQL with Streamlit web app")
 
     # Create a session state to store authentication status and credentials
@@ -63,6 +54,9 @@ def main():
     if 'authenticated' not in session_state:
         session_state.authenticated = False
 
+    if 'reset_password' not in session_state:
+        session_state.reset_password = False
+
     if 'username' not in session_state:
         session_state.username = ""
 
@@ -70,15 +64,25 @@ def main():
         session_state.password = ""
 
     if 'host' not in session_state:
-        session_state.host = "localhost"  # Update with your MySQL host
+        session_state.host = ""  # Update with your MySQL host
 
     if not session_state.authenticated:
         # Login Form
         st.subheader("Login")
-        
-        session_state.host = st.text_input("Host", value=session_state.host, placeholder="localhost")
+        st.write("By default, the host is set to localhost.")
+        session_state.host = st.text_input("Host", value=session_state.host,placeholder="localhost")
         username = st.text_input("Username", value=session_state.username)
         password = st.text_input("Password", type="password", value=session_state.password)
+        
+        # Display Reset Password checkbox
+        session_state.reset_password = st.checkbox("Reset Password")
+
+        # Show Reset Password panel if checkbox is checked
+        if session_state.reset_password:
+            st.warning("Make sure you mention the host above.")
+            reset_password_expander = st.expander("Reset Password", expanded=True)
+            with reset_password_expander:
+                reset_password_panel(session_state.host)
 
         if st.button("Login"):
             authenticated, db_connection = authenticate(username, password, session_state.host)
@@ -89,7 +93,7 @@ def main():
                 session_state.password = password
                 st.success("Login Successful!")
             else:
-                st.error("Failed to authenticate. Please check your credentials.")
+                st.error("Invalid username or password. Please try again.")
 
     if session_state.authenticated:
         # Add logout button in side panel
