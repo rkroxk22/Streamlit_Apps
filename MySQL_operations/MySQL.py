@@ -15,10 +15,23 @@ def connect_to_mysql(host, username, password):
 
 # Function to authenticate user credentials with MySQL database
 def authenticate(username, password, host):
-    db_connection = connect_to_mysql(host, username, password)
-    if db_connection:
-        return True, db_connection
-    else:
+    try:
+        # Establish connection to MySQL Server
+        mydb = mysql.connector.connect(
+            host=host,
+            user=username,
+            password=password
+        )
+        # Return the connection object along with authentication status
+        if mydb.is_connected():
+            return True, mydb
+        else:
+            return False, None
+    except mysql.connector.Error as err:
+        if err.errno == 2003:
+            st.error(f"Error connecting to MySQL server: {err}")
+        else:
+            st.error(f"Authentication failed: {err}")
         return False, None
 
 # Function to reset MySQL password for a given username
