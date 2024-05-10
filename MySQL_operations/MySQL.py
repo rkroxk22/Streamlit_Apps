@@ -3,6 +3,13 @@ import streamlit as st
 import pandas as pd
 import io
 
+# Function to create or update the .env file
+def create_or_update_env_file(host, username, password):
+    with open(".env", "w+") as env_file:
+        env_file.write(f"MYSQL_HOST={host}\n")
+        env_file.write(f"MYSQL_USER={username}\n")
+        env_file.write(f"MYSQL_PASSWORD={password}\n")
+
 # Function to authenticate user credentials with MySQL database
 def authenticate(username, password, host):
     try:
@@ -34,11 +41,11 @@ def reset_password(username, old_password, new_password, host):
 
         # Reset the password for the specified username
         mycursor.execute(f"ALTER USER '{username}'@'{host}' IDENTIFIED BY '{new_password}'")
-        mydb.commit()
         return True
     except mysql.connector.Error as err:
         st.error(f"Error: {err}")
         return False
+
 
 # Create Streamlit App
 def main():
@@ -69,7 +76,7 @@ def main():
     if not session_state.authenticated:
         # Login Form
         st.subheader("Login")
-        st.write("By default, the host is set to localhost.")
+        
         session_state.host = st.text_input("Host", value=session_state.host,placeholder="localhost")
         username = st.text_input("Username", value=session_state.username)
         password = st.text_input("Password", type="password", value=session_state.password)
