@@ -3,6 +3,7 @@ import mysql.connector
 import streamlit as st
 import pandas as pd
 import io
+import toml
 
 # Function to authenticate user credentials with MySQL database
 def authenticate(username, password, host, ssl_enabled=False):
@@ -22,6 +23,15 @@ def authenticate(username, password, host, ssl_enabled=False):
     except mysql.connector.Error as err:
         st.error(f"Error: {err}")
         return False, None
+
+# Function to update the secrets file with new credentials
+def update_secrets(secrets_file, host, username, password):
+    secrets = toml.load(secrets_file)
+    secrets['mysql']['host'] = host
+    secrets['mysql']['user'] = username
+    secrets['mysql']['password'] = password
+    with open(secrets_file, 'w') as f:
+        toml.dump(secrets, f)
 
 # Create Streamlit App
 def main():
