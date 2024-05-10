@@ -1,16 +1,18 @@
+import os
 import mysql.connector
 import streamlit as st
 import pandas as pd
 import io
 
 # Function to authenticate user credentials with MySQL database
-def authenticate(username, password, host):
+def authenticate(username, password, host, ssl_enabled=False):
     try:
         # Establish connection to MySQL Server
         mydb = mysql.connector.connect(
             host=host,
             user=username,
-            password=password
+            password=password,
+            ssl_enabled=ssl_enabled
         )
         # Return the connection object along with authentication status
         if mydb.is_connected():
@@ -21,29 +23,9 @@ def authenticate(username, password, host):
         st.error(f"Error: {err}")
         return False, None
 
-# Function to reset MySQL password for a given username
-def reset_password(username, old_password, new_password, host):
-    try:
-        # Connect to MySQL Server with the old password
-        mydb = mysql.connector.connect(
-            host=host,
-            user=username,
-            password=old_password
-        )
-        mycursor = mydb.cursor()
-
-        # Reset the password for the specified username
-        mycursor.execute(f"ALTER USER '{username}'@'{host}' IDENTIFIED BY '{new_password}'")
-        mydb.commit()
-        return True
-    except mysql.connector.Error as err:
-        st.error(f"Error: {err}")
-        return False
-
 # Create Streamlit App
 def main():
-
-     # Watermark
+    # Watermark
     st.markdown("<p style='text-align:left;color:gray;font-size:small;'>Developed by: Dopana Rohit Kumar</p>", unsafe_allow_html=True)
     # Watermark
     st.title("🤖MySQL with Streamlit web app")
@@ -54,43 +36,26 @@ def main():
     if 'authenticated' not in session_state:
         session_state.authenticated = False
 
-    if 'reset_password' not in session_state:
-        session_state.reset_password = False
-
-    if 'username' not in session_state:
-        session_state.username = ""
-
-    if 'password' not in session_state:
-        session_state.password = ""
-
-    if 'host' not in session_state:
-        session_state.host = ""  # Update with your MySQL host
-
     if not session_state.authenticated:
         # Login Form
         st.subheader("Login")
         st.write("By default, the host is set to localhost.")
-        session_state.host = st.text_input("Host", value=session_state.host,placeholder="localhost")
-        username = st.text_input("Username", value=session_state.username)
-        password = st.text_input("Password", type="password", value=session_state.password)
+        host = st.text_input("Host", value=st.secrets['mysql']['host'], placeholder="localhost")
+        username = st.text_input("Username", value=st.secrets['mysql']['user'])
+        password = st.text_input("Password", type="password", value=st.secrets['mysql']['password'])
         
-        # Display Reset Password checkbox
-        session_state.reset_password = st.checkbox("Reset Password")
-
-        # Show Reset Password panel if checkbox is checked
-        if session_state.reset_password:
-            st.warning("Make sure you mention the host above.")
-            reset_password_expander = st.expander("Reset Password", expanded=True)
-            with reset_password_expander:
-                reset_password_panel(session_state.host)
-
         if st.button("Login"):
-            authenticated, db_connection = authenticate(username, password, session_state.host)
+            authenticated, db_connection = authenticate(username, password, host, st.secrets['mysql']['ssl_enabled'])
             if authenticated:
                 session_state.authenticated = True
                 session_state.db_connection = db_connection
                 session_state.username = username
                 session_state.password = password
+                # Update the secrets file with the new credentials
+                st.secrets['mysql']['host'] = host
+                st.secrets['mysql']['user'] = username
+                st.secrets['mysql']['password'] = password
+                st.secrets['mysql']['ssl_enabled'] = st.secrets['mysql']['ssl_enabled']
                 st.success("Login Successful!")
             else:
                 st.error("Invalid username or password. Please try again.")
