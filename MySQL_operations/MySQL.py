@@ -69,7 +69,8 @@ def main():
     if not session_state.authenticated:
         # Login Form
         st.subheader("Login")
-        session_state.host = st.text_input("Host", value=session_state.host,placeholder="your_mysql_host")
+        st.write("By default, the host is set to localhost.")
+        session_state.host = st.text_input("Host", value=session_state.host,placeholder="localhost")
         username = st.text_input("Username", value=session_state.username)
         password = st.text_input("Password", type="password", value=session_state.password)
         
