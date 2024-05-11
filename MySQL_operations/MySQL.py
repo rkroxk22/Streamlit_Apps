@@ -1,28 +1,16 @@
-import os
 import mysql.connector
 import streamlit as st
 import pandas as pd
 import io
-import toml
-
-# Load secrets directly
-secrets = st.secrets
-
-# Access individual secrets
-host = secrets['mysql']['host']
-username = secrets['mysql']['user']
-password = secrets['mysql']['password']
-ssl_enabled = secrets['mysql']['ssl_enabled']
 
 # Function to authenticate user credentials with MySQL database
-def authenticate(username, password, host, ssl_enabled=False):
+def authenticate(username, password, host):
     try:
         # Establish connection to MySQL Server
         mydb = mysql.connector.connect(
             host=host,
             user=username,
-            password=password,
-            ssl_enabled=ssl_enabled
+            password=password
         )
         # Return the connection object along with authentication status
         if mydb.is_connected():
@@ -33,18 +21,29 @@ def authenticate(username, password, host, ssl_enabled=False):
         st.error(f"Error: {err}")
         return False, None
 
-# Function to update the secrets file with new credentials
-def update_secrets(secrets_file, host, username, password):
-    secrets = toml.load(secrets_file)
-    secrets['mysql']['host'] = host
-    secrets['mysql']['user'] = username
-    secrets['mysql']['password'] = password
-    with open(secrets_file, 'w') as f:
-        toml.dump(secrets, f)
+# Function to reset MySQL password for a given username
+def reset_password(username, old_password, new_password, host):
+    try:
+        # Connect to MySQL Server with the old password
+        mydb = mysql.connector.connect(
+            host=host,
+            user=username,
+            password=old_password
+        )
+        mycursor = mydb.cursor()
+
+        # Reset the password for the specified username
+        mycursor.execute(f"ALTER USER '{username}'@'{host}' IDENTIFIED BY '{new_password}'")
+        mydb.commit()
+        return True
+    except mysql.connector.Error as err:
+        st.error(f"Error: {err}")
+        return False
 
 # Create Streamlit App
 def main():
-    # Watermark
+
+     # Watermark
     st.markdown("<p style='text-align:left;color:gray;font-size:small;'>Developed by: Dopana Rohit Kumar</p>", unsafe_allow_html=True)
     # Watermark
     st.title("🤖MySQL with Streamlit web app")
@@ -55,23 +54,43 @@ def main():
     if 'authenticated' not in session_state:
         session_state.authenticated = False
 
+    if 'reset_password' not in session_state:
+        session_state.reset_password = False
+
+    if 'username' not in session_state:
+        session_state.username = ""
+
+    if 'password' not in session_state:
+        session_state.password = ""
+
+    if 'host' not in session_state:
+        session_state.host = ""  # Update with your MySQL host
+
     if not session_state.authenticated:
         # Login Form
         st.subheader("Login")
         st.write("By default, the host is set to localhost.")
-        host = st.text_input("Host", value=secrets['mysql']['host'], placeholder="localhost")
-        username = st.text_input("Username", value=secrets['mysql']['user'])
-        password = st.text_input("Password", type="password", value=secrets['mysql']['password'])
+        session_state.host = st.text_input("Host", value=session_state.host,placeholder="localhost")
+        username = st.text_input("Username", value=session_state.username)
+        password = st.text_input("Password", type="password", value=session_state.password)
         
+        # Display Reset Password checkbox
+        session_state.reset_password = st.checkbox("Reset Password")
+
+        # Show Reset Password panel if checkbox is checked
+        if session_state.reset_password:
+            st.warning("Make sure you mention the host above.")
+            reset_password_expander = st.expander("Reset Password", expanded=True)
+            with reset_password_expander:
+                reset_password_panel(session_state.host)
+
         if st.button("Login"):
-            authenticated, db_connection = authenticate(username, password, host, secrets['mysql']['ssl_enabled'])
+            authenticated, db_connection = authenticate(username, password, session_state.host)
             if authenticated:
                 session_state.authenticated = True
                 session_state.db_connection = db_connection
                 session_state.username = username
                 session_state.password = password
-                # Update the secrets file with the new credentials
-                update_secrets(secrets, host, username, password)
                 st.success("Login Successful!")
             else:
                 st.error("Invalid username or password. Please try again.")
@@ -84,27 +103,6 @@ def main():
 
         st.sidebar.subheader("Database Operations")
         perform_operations(session_state.db_connection)
-
-
-# Function to reset MySQL password for a given username
-def reset_password(username, old_password, new_password):
-    try:
-        # Connect to MySQL Server with the old password
-        mydb = mysql.connector.connect(
-            host="localhost",
-            user=username,
-            password=old_password
-        )
-        mycursor = mydb.cursor()
-
-        # Reset the password for the specified username
-        mycursor.execute(f"ALTER USER '{username}'@'localhost' IDENTIFIED BY '{new_password}'")
-        mydb.commit()
-        return True
-    except mysql.connector.Error as err:
-        print(f"Error: {err}")
-        return False
-
 
 # Panel for resetting password
 def reset_password_panel(host):
@@ -361,121 +359,178 @@ def create_new_database(mycursor):
 # Function to create a new table
 def create_new_table(mycursor):
     st.subheader("Create New Table")
-    new_table_name = st.text_input("Enter New Table Name:")
-    if st.button("Create") and new_table_name:
-        try:
-            # Create new table
-            mycursor.execute(f"CREATE TABLE {new_table_name} (id INT AUTO_INCREMENT PRIMARY KEY)")
-            st.success(f"Table '{new_table_name}' created successfully!")
-        except mysql.connector.Error as err:
-            st.error(f"Error: {err}")
-
-# Function to create a new record
-def create_record(database, table, mycursor, db_connection):
-    st.subheader("Create Record")
-    if database and table:
-        # Fetching table columns
-        mycursor.execute(f"DESCRIBE {table}")
-        table_columns = [col[0] for col in mycursor.fetchall()]
-        record = {}
-        for column in table_columns:
-            record[column] = st.text_input(column)
-
-        if st.button("Create"):
+    selected_database = st.selectbox("Select Database", get_all_databases(mycursor), key="create_table_selectbox",
+                                     placeholder='Select Database', index=None)
+    if selected_database:
+        mycursor.execute(f"USE {selected_database}")
+        new_table_name = st.text_input("Enter New Table Name:")
+        columns_input = st.text_area("Enter Column Names, Types, and Properties (comma-separated):",placeholder='e.g., id int(10) AUTO_INCREMENT PRIMARY KEY, name varchar(255), email varchar(255)')
+        if st.button("Create") and new_table_name and columns_input:
             try:
-                # Constructing the query to insert record
-                columns = ', '.join(record.keys())
-                values = ', '.join([f"'{value}'" for value in record.values()])
-                query = f"INSERT INTO {table} ({columns}) VALUES ({values})"
-                mycursor.execute(query)
-                db_connection.commit()
-                st.success("Record created successfully!")
+                # Split the input by comma to get individual column definitions
+                column_defs = columns_input.split(',')
+                # Join the column definitions to create the SQL query
+                sql_query = f"CREATE TABLE {new_table_name} ({', '.join(column_defs)})"
+                # Execute the SQL query
+                mycursor.execute(sql_query)
+                st.success(f"Table '{new_table_name}' created successfully in database '{selected_database}'!")
             except mysql.connector.Error as err:
                 st.error(f"Error: {err}")
-    else:
-        st.warning("Please select a database and a table first.")
+
+
+# Function to create a record
+def create_record(selected_database, selected_table, mycursor, db_connection):
+    st.subheader("Create a Record")
+    st.write(f"Selected Table: {selected_table}")
+    mycursor.execute(f"DESCRIBE {selected_table}")
+    columns = [col[0] for col in mycursor.fetchall()]
+    entry_values = {}
+    for col in columns:
+        entry_values[col] = st.text_input(f"Enter {col}")
+    if st.button("Create"):
+        column_names = ', '.join(entry_values.keys())
+        column_values = ', '.join(["'{}'".format(value) for value in entry_values.values()])
+        sql = f"INSERT INTO {selected_table}({column_names}) VALUES({column_values})"
+        mycursor.execute(sql)
+        db_connection.commit()
+        st.success("Record Created Successfully!!!")
 
 # Function to read records
 def read_records(mycursor):
     st.subheader("Read Records")
     selected_database, selected_table = select_database_and_table(mycursor)
-    if selected_database and selected_table:
+    if selected_table:
+        st.write(f"Selected Table: {selected_table}")
         try:
-            # Fetching all records from the selected table
             mycursor.execute(f"SELECT * FROM {selected_table}")
-            records = mycursor.fetchall()
-            if records:
-                # Displaying records in a DataFrame
-                df = pd.DataFrame(records, columns=[col[0] for col in mycursor.description])
-                st.write(df)
-            else:
-                st.info("No records found in the selected table.")
+            result = mycursor.fetchall()
+            df = pd.DataFrame(result, columns=[i[0] for i in mycursor.description])
+            st.write(df)
+            # Read and discard the unread result
+            mycursor.fetchall()
         except mysql.connector.Error as err:
             st.error(f"Error: {err}")
 
 # Function to update a record
-def update_record(database, table, mycursor, db_connection):
-    st.subheader("Update Record")
-    if database and table:
-        # Fetching table columns
-        mycursor.execute(f"DESCRIBE {table}")
-        table_columns = [col[0] for col in mycursor.fetchall()]
-        # Dropdown to select the record to update
-        record_id = st.selectbox("Select Record ID", get_record_ids(table, mycursor))
-        if record_id:
-            # Fetching the selected record
-            mycursor.execute(f"SELECT * FROM {table} WHERE id = {record_id}")
-            record = mycursor.fetchone()
-            if record:
-                # Displaying the selected record
-                st.write(f"Selected Record ID: {record_id}")
-                st.write(record)
-                # Input fields to update the record
-                updated_record = {}
-                for column in table_columns:
-                    updated_record[column] = st.text_input(column, value=record[table_columns.index(column)])
-                if st.button("Update"):
-                    try:
-                        # Constructing the query to update record
-                        set_values = ', '.join([f"{key} = '{value}'" for key, value in updated_record.items()])
-                        query = f"UPDATE {table} SET {set_values} WHERE id = {record_id}"
-                        mycursor.execute(query)
-                        db_connection.commit()
-                        st.success("Record updated successfully!")
-                    except mysql.connector.Error as err:
-                        st.error(f"Error: {err}")
+def update_record(selected_database, selected_table, mycursor, db_connection):
+    st.subheader("Update a Record")
+    if selected_table:
+        st.write(f"Selected Table: {selected_table}")
+        # Get all primary key columns
+        try:
+            mycursor.execute(f"SHOW KEYS FROM {selected_table} WHERE Key_name = 'PRIMARY'")
+            primary_keys_info = mycursor.fetchall()
+
+            if not primary_keys_info:
+                st.error("No primary key found in the table. Cannot perform update.")
+                return
+
+            primary_keys = [primary_key_info[4] for primary_key_info in primary_keys_info]
+
+            # Check if there is only one primary key
+            if len(primary_keys) == 1:
+                primary_key = primary_keys[0]
+                # Get all column names excluding the primary key
+                mycursor.execute(f"DESCRIBE {selected_table}")
+                columns = [col[0] for col in mycursor.fetchall() if col[0] != primary_key]
+                # Show primary key column for reference
+                st.write(f"Primary Key: {primary_key}")
+
             else:
-                st.warning("Record not found.")
-    else:
-        st.warning("Please select a database and a table first.")
+                st.write("Multiple primary keys found in the table.")
+                st.write("Select the primary key to use for update:")
+                # Automatically select the first primary key for update
+                primary_key = primary_keys[0]
+                st.write(f"Primary key '{primary_key}' selected for update.")
+                # Get all column names excluding the selected primary key
+                mycursor.execute(f"DESCRIBE {selected_table}")
+                columns = [col[0] for col in mycursor.fetchall() if col[0] != primary_key]
+                # Show primary key column for reference
+                st.write(f"Primary Key: {primary_key}")
+
+            # Get all primary key values
+            mycursor.execute(f"SELECT {primary_key} FROM {selected_table}")
+            primary_key_values = [row[0] for row in mycursor.fetchall()]
+
+            # Display dropdown list for primary key selection
+            id = st.selectbox(f"Select {primary_key} to Update", primary_key_values)
+
+            # Fetch current values for the selected record
+            mycursor.execute(f"SELECT * FROM {selected_table} WHERE {primary_key} = %s", (id,))
+            current_record = mycursor.fetchone()
+
+            # Input fields for updating values
+            entry_values = {}
+            for col, value in zip(columns, current_record[1:]):  # Skip primary key column
+                entry_values[col] = st.text_input(f"Enter New {col}", placeholder=value)
+
+            # Update button
+            if st.button("Update"):
+                # Construct SET clause for SQL query
+                set_clause = ', '.join([f"{col} = '{entry_values[col]}'" for col in entry_values])
+                # Construct WHERE clause for SQL query
+                where_clause = f"{primary_key} = '{id}'"
+                # Construct UPDATE query
+                sql = f"UPDATE {selected_table} SET {set_clause} WHERE {where_clause}"
+                # Execute UPDATE query
+                mycursor.execute(sql)
+                db_connection.commit()
+                st.success("Record Updated Successfully!!!")
+
+        except mysql.connector.Error as err:
+            st.error(f"Error: {err}")
 
 # Function to delete a record
-def delete_record(database, table, mycursor, db_connection):
-    st.subheader("Delete Record")
-    if database and table:
-        # Dropdown to select the record to delete
-        record_id = st.selectbox("Select Record ID", get_record_ids(table, mycursor))
-        if record_id:
-            # Fetching the selected record
-            mycursor.execute(f"SELECT * FROM {table} WHERE id = {record_id}")
-            record = mycursor.fetchone()
-            if record:
-                # Displaying the selected record
-                st.write(f"Selected Record ID: {record_id}")
-                st.write(record)
-                if st.button("Delete"):
-                    try:
-                        # Constructing the query to delete record
-                        query = f"DELETE FROM {table} WHERE id = {record_id}"
-                        mycursor.execute(query)
-                        db_connection.commit()
-                        st.success("Record deleted successfully!")
-                    except mysql.connector.Error as err:
-                        st.error(f"Error: {err}")
+def delete_record(selected_database, selected_table, mycursor, db_connection):
+    st.subheader("Delete a Record")
+    if selected_table:
+        st.write(f"Selected Table: {selected_table}")
+        # Get all primary key columns
+        try:
+            mycursor.execute(f"SHOW KEYS FROM {selected_table} WHERE Key_name = 'PRIMARY'")
+            primary_keys_info = mycursor.fetchall()
+
+            if not primary_keys_info:
+                st.error("No primary key found in the table. Cannot perform deletion.")
+                return
+
+            primary_keys = [primary_key_info[4] for primary_key_info in primary_keys_info]
+
+            # Check if there is only one primary key
+            if len(primary_keys) == 1:
+                primary_key = primary_keys[0]
+                # Show primary key column for reference
+                st.write(f"Primary Key: {primary_key}")
+
             else:
-                st.warning("Record not found.")
-    else:
-        st.warning("Please select a database and a table first.")
+                st.write("Multiple primary keys found in the table.")
+                st.write("Select the primary key to use for deletion:")
+                # Automatically select the first primary key for deletion
+                primary_key = primary_keys[0]
+                st.write(f"Primary key '{primary_key}' selected for deletion.")
+                # Show primary key column for reference
+                st.write(f"Primary Key: {primary_key}")
+
+            # Get all primary key values
+            mycursor.execute(f"SELECT {primary_key} FROM {selected_table}")
+            primary_key_values = [row[0] for row in mycursor.fetchall()]
+
+            # Display dropdown list for primary key selection
+            id = st.selectbox(f"Select {primary_key} to Delete", primary_key_values)
+
+            # Delete button
+            if st.button("Delete"):
+                # Construct WHERE clause for SQL query
+                where_clause = f"{primary_key} = '{id}'"
+                # Construct DELETE query
+                sql = f"DELETE FROM {selected_table} WHERE {where_clause}"
+                # Execute DELETE query
+                mycursor.execute(sql)
+                db_connection.commit()
+                st.success("Record Deleted Successfully!!!")
+
+        except mysql.connector.Error as err:
+            st.error(f"Error: {err}")
 
 # Function to get all databases
 def get_all_databases(mycursor):
@@ -483,15 +538,10 @@ def get_all_databases(mycursor):
     return [db[0] for db in mycursor.fetchall()]
 
 # Function to get all tables in a database
-def get_all_tables(database, mycursor):
-    mycursor.execute(f"USE {database}")
+def get_all_tables(selected_database, mycursor):
+    mycursor.execute(f"USE {selected_database}")
     mycursor.execute("SHOW TABLES")
     return [table[0] for table in mycursor.fetchall()]
 
-# Function to get record IDs
-def get_record_ids(table, mycursor):
-    mycursor.execute(f"SELECT id FROM {table}")
-    return [record[0] for record in mycursor.fetchall()]
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
